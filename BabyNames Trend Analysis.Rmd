@@ -1,0 +1,377 @@
+---
+title: "R Mini Project - Baby Names"
+author: "Group 15 : Arun Kumar Jaganathan, Ganga Rajagopal, Eoghan Quinn-Nealon and Colin O' Flynn"
+output: 
+  html_document:
+    code_folding: hide
+---
+  
+  ```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## {.tabset}
+
+### **Introduction**
+
+**Problem Statement:**
+
+Yesterday, Today and Tomorrow, one thing that is never going to change is the challenge and excitement of selecting a name for a new born baby. Our objective here is to analyze and show few interesting trends and results of the babynames from 1964-2018
+
+
+
+**Insights:**
+
+* Cardinal Cognizance: Analyzing cardinal points such as total birth in Ireland, First letter and most popular name trends
+* Diversity in Names : Unisex names trend, transition in Unisex Names analysis and growth of name diversity.
+* Entertaining Study : Studying the trend in Irish Names, affect of Immigration, books and pop-singers in babynames 
+
+**Roles and Responsibilities (Group 15):**
+
+* I, Arun Kumar Jaganathan set up the first group meeting, platform to communicate (whatsapp) and completed the ‘Data Processing’ process in the required format for the project analysis, Worked on “Total Birth in Ireland” and “Top Unisex Names in Ireland”. Also, helped in fixing issues while collating the project.
+* I, Eoghan Quinn-Nealon worked on trends in the most popular names as well as trends in number of unique names with respect to time. I also created a set of names in Irish and compared the proportion of Irish names to total babies born in a given year. I then graphed all the Irish names and created a subset of the most noteworthy and observed patterns in these names.
+* I, Colin O Fynn, investigated the impact of pop culture and immigration on Irish baby names. I searched for the most popular names in Poland and searched for them in the baby names dataset. I created subsets for a few of the male and female polish names and created a line graph for each. I went through the same procedure for popular Arabic and Middle-Eastern names. I searched the data again for spikes in baby names created by pop culture (Books, Movies, Pop Singers). I graphed some of the results.
+* I, Ganga Rajagopal worked on the ‘Data Cleaning’ process, analyzing “First Letter/Alphabet Trends” and graphed “Transition in Unisex Names”, also worked on collating the project and modifying the graphs for better visualization. Furthermore worked on story-telling , summarizing, framing the report and generating it for an overall view of ‘BabyNames Data Analysis’.
+
+
+
+### **Packages Required**
+
+These are the required packages for this project :
+
+*	Tidyverse
+*	Plyr
+*	dplyr
+* ggplot2
+* stringr
+* readr
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+
+library(plyr)
+library(tidyverse)
+library(ggplot2)
+library(stringr)
+library(readr)
+library(dplyr)
+library(tm)
+library(wordcloud)
+library(RColorBrewer)
+```
+
+### **Exploratory Data Analysis & Data Preparation** {.tabset}
+
+#### Data Import
+The data set is downloaded from “https://www.cso.ie/en/interactivezone/visualisationtools/babynamesofireland/”  where we had 110 csv files from year 1964 to 2018 (Boy and Girl)
+This dataset contains 68508 entries divided as male and female for around 55 years in Ireland. 
+
+Data consists of only three columns (“Name”, “Rank” and “Number of Births”)
+
+
+*Sample Data :*
+
+*Male*
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+baby_names_boys <- list.files(path= "G:/Mini proj/boys dataset"
+                              , pattern="*.csv", full.names=TRUE)
+dat_csv_boy<- ldply(baby_names_boys,read_csv)
+sample_n(dat_csv_boy,5)
+```
+
+
+*Female*
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+baby_names_girls <- list.files(path= "G:/Mini proj/girls dataset",
+                               pattern="*.csv", full.names=TRUE)
+dat_csv_grl<- ldply(baby_names_girls,read_csv)
+sample_n(dat_csv_grl,5)
+```
+Using ldply and lapply data is read from csv and added two other columns “Year” and "Sex" were added whose values were taken from the file name with the help of regex expression. Year and sex had been added to every column using repeat functionality.
+
+
+*Sample Data :*
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+# For Male data set
+
+
+dat_csv_boy$year<-0 								    	 # New columm for Year
+year<-lapply(baby_names_boys,function(x) str_extract(x,"\\d{4}"))
+tcount_eachyear_boys<-lapply(baby_names_boys, function(x) nrow(read.csv(x)))
+dat_csv_boy$year<-rep(year,tcount_eachyear_boys)
+dat_csv_boy$sex<-"Male" 									# New columm for Male Gender
+
+
+# For Female data set
+
+
+dat_csv_grl$year<-0 								    	 # New columm for Year
+year<-lapply(baby_names_girls,function(y) str_extract(y,"\\d{4}"))
+tcount_eachyear_girls<-lapply(baby_names_girls, function(x) nrow(read.csv(x)))
+dat_csv_grl$year<-rep(year,tcount_eachyear_girls)
+dat_csv_grl$sex<-"Female" 									# New columm for Female Gender
+
+sample_n(dat_csv_grl,5)
+sample_n(dat_csv_boy,5)
+```
+
+Male and Female data was loaded and combined into single data frame for analysis.
+
+
+*Sample Data :*
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+# Combining both the Boy and Girl Data set
+
+cmbd_boy_girl_data <- rbind(dat_csv_boy, dat_csv_grl)
+
+# Added column and changing datatye over the Data set
+
+names(cmbd_boy_girl_data)[3] <- "No_of_bth"
+cmbd_boy_girl_data$numbofrecords <- 1
+cmbd_boy_girl_data$year <- as.numeric(cmbd_boy_girl_data$year) #list is converted to Numeric
+
+sample_n(cmbd_boy_girl_data,5)
+
+# Subset for Unisex Names Analysis
+
+sbst1<-sapply(dat_csv_boy$Name, function(x) x %in% dat_csv_grl$Name)
+sbst2 <-sapply(dat_csv_grl$Name, function(x) x %in% dat_csv_boy$Name)
+cmbd_boy_girl_data$unisexnames <- c(sbst1,sbst2)
+
+
+
+```
+
+#### Data Cleaning
+
+On analysing the data there were a few spurious characters like 'Á','É','Í','Ó','Ú'.
+
+
+*Sample Data:*
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+spuChar <- sapply(colnames(cmbd_boy_girl_data), function(x) grep("Á", cmbd_boy_girl_data[,x]))
+spuChar1 <- sapply(colnames(cmbd_boy_girl_data), function(x) grep("Í", cmbd_boy_girl_data[,x]))
+
+cmbd_boy_girl_data[spuChar$Name[1],]
+cmbd_boy_girl_data[spuChar1$Name[1],]
+
+```
+
+
+These spurious characters 'Á','É','Í','Ó','Ú' has  replaced as 'A','E','I','O' and 'U' using sapply() respectively for one of the analysis in this project.
+
+*Sample Data:*
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+data_letter_analysis <- cmbd_boy_girl_data
+data_letter_analysis$Name <- (sapply(data_letter_analysis$Name,gsub,pattern="\\Á",replacement="A")) 
+  data_letter_analysis$Name <-  (sapply(data_letter_analysis$Name,gsub,pattern="\\É",replacement="E")) 
+  data_letter_analysis$Name <-  (sapply(data_letter_analysis$Name,gsub,pattern="\\Í",replacement="I"))
+  data_letter_analysis$Name <-  (sapply(data_letter_analysis$Name,gsub,pattern="\\Ó",replacement="O")) 
+  data_letter_analysis$Name <- (sapply(data_letter_analysis$Name,gsub,pattern="\\Ú",replacement="U"))
+
+data_letter_analysis[spuChar$Name[1],]
+data_letter_analysis[spuChar1$Name[1],]
+  
+```
+
+#### Data Preview
+
+20 rows of the data are listed below, it contains 'Name','Rank', 'Number of Births','year','sex'
+
+
+*Sample Data:*
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+sample_n(cmbd_boy_girl_data,20)
+```
+
+### **Analyzing Data and visualizations** {.tabset}
+
+#### Cardinal Cognizance
+
+**Total Birth In Ireland**
+
+At the outset, by visualizing the trend in birth through the years, we can understand that there has been a steady increase in the number of births from 1964 up until 1980, a decrease from then on until 2000 which has been the least number of births in 55 years.
+
+From 2000, the population surged in 10 years and again it began to dwindle in the forthcoming years.
+
+Total Number of Birth in Ireland is 68508 out of which 40,349 are Female and 28159 are male.
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+grlboybrth <- cmbd_boy_girl_data  %>% group_by(Name,year,sex) %>% summarise(totlbrth = sum(No_of_bth))
+summ_year_sex <- grlboybrth %>% group_by(year,sex) %>% summarise(t = sum(totlbrth))
+Area_graph <- ggplot(summ_year_sex, mapping = aes(x = year, y =t, fill = sex, group = sex))+ 
+  geom_area(aes(colour = sex)) +   theme_classic() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))+
+  ggtitle("Total Birth in Ireland (1964-2018)") + labs(x="Year", y="Number of Births")
+Area_graph
+```
+
+
+**First Letter/Alphabet of Baby Names**
+
+In a few countries/regions it is conventional to first figure out the first letter and then befit a name, hence this is to interpret Ireland's most popular 'First Alphabet' among baby names.
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+data_letter_analysis$FirstLetter <- substr(data_letter_analysis$Name, start = 1, stop = 1)
+
+ggplot(data = data_letter_analysis, aes(x = data_letter_analysis$FirstLetter, y = data_letter_analysis$No_of_bth)) +
+  geom_point(aes(col=sex), stat="identity",position=position_dodge()) +
+  geom_smooth(method="loess", se=F) +
+  xlab("\n Alphabets") +
+  ylab("Number of Births\n") +
+  ggtitle("First Letter Trends")
+
+```
+
+**Trend in Most Popular Names**
+
+From the graph above graph we observe that most of the boy's names start with "J" and the girl's names start with "M", which leads us to analyse the most popular name among the baby names.
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+names <- unique(as.character(subset(cmbd_boy_girl_data,Rank==1)$Name))
+rank1 <- subset(cmbd_boy_girl_data, Name %in% names)
+d1 <- ggplot(rank1, aes(x=year, y=No_of_bth,color=Name))
+d1 + geom_line() + facet_wrap(~sex) + xlab("Year") + ylab("Number of Births")+ggtitle("Trend in Most Popular Names")
+```
+
+This is the trend in names that had the top spot of names at some stage in the data, split into male and female graphs, there is a noticeable decline in the number of births of the name with most births, as well as a sharp drop in popularity of the most popular names at the beginning of the Data. (John & Mary)
+
+#### Diversity in Names
+
+**Unisex Name Trends**
+
+Gender-neutral baby names are trending and there is an increase in this trend throughout the years.
+
+This is an important concept as we see many datasets AI/ML models figure the sex of a person by the name and the data gets skewed because of which we get uneven results.
+
+One of the famous examples being 'salary' trends among employees. Hence gender-neutral baby names are going to be very helpful for future data analysis.
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+sepunisexname <- cmbd_boy_girl_data   %>% select(Name,sex,unisexnames,numbofrecords) %>% 
+   filter(unisexnames =="TRUE") %>% 
+  group_by(Name,sex,unisexnames) %>% summarise(Births =sum(numbofrecords))
+
+unisexname <- sepunisexname %>%  group_by(Name) %>%  
+  mutate(total = ifelse(Name == Name, sum(Births), NA)) %>% 
+  arrange(desc(total)) %>% head(n=20)
+
+TpunisexName <- ggplot(unisexname, aes(x = reorder(Name,+Births),Births))+
+geom_bar(position = position_stack(),aes(fill = sex) ,stat = "identity")+ 
+xlab("Names") + ylab("Number of Births") + coord_flip() + 
+  geom_text(aes(label = Births),position = position_stack(vjust = .5)) +
+  ggtitle("Top Unisex Names in Ireland (1964-2018)")
+TpunisexName
+```
+
+
+**Transition in Unisex Names**
+
+An interesting insight into Unisex names is to observe the transition from Male to Female and vice-versa throughout the period (1964-2018).
+
+From the graph below we see names like "Morgan" and "Robin" were mostly Male centered names until the last decade of the 19th century and henceforth has been popular among females too. "Naoise", "Lee" and few others have been unisex names from the beginning.
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+GenderTrans <- c(unisexname$Name)
+GenTrans <- subset(cmbd_boy_girl_data,((Name %in% c(GenderTrans))&(sex=="Female"))
+                   |((Name %in% c(GenderTrans))&(sex=="Male")))
+genplot <- ggplot(GenTrans, aes(x=year,y=Name,col=sex))
+genplot + geom_point(aes(shape=sex))+ xlab("Year") +ylab("Names") + ggtitle("Transition in Unisex Names (1964-2018)")
+```
+
+**Growth of Name Diversity**
+
+The drop in popularity of the most popular name is reflected in the increase in unique names with time. The number of unique names on the list more than doubles by 2018.
+
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+UniqueNames <- summarise(group_by(cmbd_boy_girl_data,year,sex),No_Unique=max(Rank))
+d1 <- ggplot(UniqueNames, aes(x=year,y=No_Unique,col=sex,fill=sex))
+d1 + geom_area() + xlab("Year") + ylab("Number of Unique Names")+ ggtitle("Growth of Name Diversity")
+```
+
+
+#### Entertaining Study
+
+**Irish-Gaelic Baby Names :**
+
+This is data on the most popular Irish(Gaelic) names, there is a noticeable increase from the 1980s to 1990s as well as a large drop off around the year 2000. However the name Saoirse is an exception to this, this would likely be due to the popularity of actress Saoirse Ronan.
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+PopIrG <- c("Aoife","Sinead","Niamh","Fiona","Saoirse")
+PopIrB <- c("Niall","Ciaran","Eoin","Cian","Sean")
+
+PopIrSub <- subset(cmbd_boy_girl_data,((Name %in% c(PopIrG))&(sex=="Female"))
+                   |((Name %in% c(PopIrB))&(sex=="Male")))
+d1 <- ggplot(PopIrSub, aes(x=year,y=No_of_bth,col=Name))
+d1 + geom_line() + xlab("Year") +ylab("Number of Births")+facet_wrap(~sex)
+```
+
+**Polish Baby Names (Impact of Immigration):**
+
+The Polish community is the largest non-Irish group living and working in Ireland. Ireland opened its borders to Polish nationals in 2004 when Poland joined the EU. The rise in traditional Polish names given to babies is evident in the two-line graphs above. 
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+PopB <- c("Antoni","Jakub","Szymon","Franciszek","Filip","Aleksander","Mikolaj")
+PopG <- c("Zuzanna","Zofia","Maja","Alicja","Aleksandra","Oliwia","Antonina")
+
+PopSub <- subset(cmbd_boy_girl_data,((Name %in% c(PopG))&(sex=="Female"))
+                   |((Name %in% c(PopB))&(sex=="Male")))
+
+d2 <- ggplot(PopSub, aes(x=year,y=No_of_bth,col=Name))
+d2 + geom_line() + xlab("Year") +ylab("Number of Births")+facet_wrap(~sex)
+
+
+
+
+```
+
+
+
+
+**How Books and Pop-Singers influenced Baby Names?**
+
+
+The popular US singers named in the above graph have affected Irish baby names. The first appearance of the of Britney in the data first occured in the late 1990s, when she released her fist song. As her popularity decreased, so did the number of babies born with that name. The names Miley and Ariana started to become popular in the 2010s. 
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+PopSingers <- c("Miley", "Ariana", "Britney")
+PopSingerSub <- subset(cmbd_boy_girl_data,(Name %in% c(PopSingers)& (sex =="Female")))
+PopGraph <- ggplot(PopSingerSub, aes(x = year, y = No_of_bth, col = Name)) + geom_line() + expand_limits(x= 1995) + ggtitle("Influence of Popular American Pop Stars (Britney Spears, Ariana Grande and Miley Cyrus)")+ labs(x = "Year", y = "Number of Births")
+PopGraph
+
+```
+
+The graph below shows the dramatic increase in the number of babies born with the name Harry. The rise began in 1998 when the books first were released, and another rise can be seen in the mid 2000s when the movies started to be released. The side character of Luna also started to become popular with the movies. There are 0 occurrences of babies called Luna before the Harry Potter movies were released.
+
+```{r eval=TRUE, echo=TRUE, message=FALSE, warning=FALSE}
+
+HPHarry <- subset(cmbd_boy_girl_data, Name == "Harry" & sex == "Male");HPLuna <- subset(cmbd_boy_girl_data, Name == "Luna")
+HP <- bind_rows(HPHarry, HPLuna)
+
+ggplot(data = HP, aes(x = year, y = No_of_bth, color = Name)) + geom_line() + ggtitle("Harry and Luna from The Harry Potter books/Movies")+ labs(x = "Years", y = "Number of Births")
+
+```
+
+
+
+
+### **Summary**
+
+
+From the analysis of BabyNames we have been able to visualize and analyze quite a few interesting insights:
+
+* We see that Irelands most popular First Letter for Female name is “M” such as “Mary” and Male name is “J” such as “Jack”, “James”. Also few of the most Popular names of Ireland from analysis are found to be “Emily”, “Emma”, “Sean”.
+
+*	Gender-neutral analysis: Interestingly we could see popular unisex names trending as years pass by and the transition of each name from Male to Female and vice-versa from 1964 to 2018.
+* Traditional Irish names,  has a noticeable increase from the 1980s to 1990s as well as a large drop off around the year 2000. After immigration there is a steady increase in the trend of traditional Polish names.
+
+* Entertainment industry being one of the most powerful ones also has an effect on babynames. The appearance of the Name Britney increased and decreased along with her popularity. The Rise of name Harry began in 1998 when the books first were released, and another rise can be seen in the mid 2000s when the movies started to be released. 
+
+
